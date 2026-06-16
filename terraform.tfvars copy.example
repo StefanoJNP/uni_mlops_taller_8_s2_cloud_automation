@@ -1,0 +1,56 @@
+# =============================================================================
+# terraform.tfvars.example
+# Copiar a terraform.tfvars y completar los valores reales
+# ⚠️  NO commitear terraform.tfvars al repositorio (añadir al .gitignore)
+# =============================================================================
+
+# Identidad Azure
+subscription_id = "f8d14d5c-68d7-4400-8d78-7ebc4b6722ba"
+tenant_id       = "c87f3938-4891-42ef-856e-d299fcbfc432"
+
+# Proyecto
+project     = "myapp"
+environment = "prod"
+location    = "eastus2"
+location_short = "eus2"
+
+# Etiquetas
+owner       = "platform-team"
+cost_center = "engineering"
+
+# Red
+vnet_address_space           = ["10.0.0.0/8"]
+aks_subnet_cidr              = "10.1.0.0/16"
+aks_pod_cidr                 = "10.244.0.0/16"
+appgw_subnet_cidr            = "10.2.0.0/24"
+private_endpoint_subnet_cidr = "10.2.1.0/24"
+
+# AKS
+kubernetes_version      = "1.30"
+availability_zones      = ["1", "2", "3"]
+private_cluster_enabled = false   # true para producción con hub-spoke
+
+# System Node Pool
+system_node_pool = {
+  name              = "system"
+  vm_size           = "Standard_D4ds_v5"
+  min_count         = 3
+  max_count         = 6
+  os_disk_size_gb   = 128
+  os_disk_type      = "Ephemeral"
+  max_pods          = 110
+  ultra_ssd_enabled = false
+}
+
+# User Node Pool
+user_node_pool = {
+  name            = "workload"
+  vm_size         = "Standard_D8ds_v5"
+  min_count       = 3
+  max_count       = 12
+  os_disk_size_gb = 128
+  os_disk_type    = "Ephemeral"
+  max_pods        = 110
+  node_labels     = { "nodepool-type" = "user" }
+  node_taints     = []
+}
