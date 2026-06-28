@@ -57,3 +57,27 @@ output "get_credentials_command" {
   description = "Comando para obtener kubeconfig del cluster"
   value       = "az aks get-credentials --resource-group ${azurerm_resource_group.main.name} --name ${module.aks.cluster_name} --overwrite-existing"
 }
+
+output "aks_principal_id" {
+  value = module.aks.aks_identity_principal_id
+}
+
+output "agic_identity_object_id" {
+  description = "Object ID de la identidad gestionada del addon AGIC (debe coincidir con el object id del error 403)"
+  value       = module.aks.agic_identity_object_id
+}
+
+output "agic_identity_client_id" {
+  description = "Client ID de la identidad gestionada del addon AGIC (debe coincidir con el client id del error 403)"
+  value       = module.aks.agic_identity_client_id
+}
+
+output "agic_appgw_contributor_role_assignment_id" {
+  description = "ID del role assignment Contributor sobre el Application Gateway"
+  value       = module.aks.agic_appgw_contributor_role_assignment_id
+}
+
+output "agic_rg_reader_role_assignment_id" {
+  description = "ID del role assignment Reader sobre el Resource Group"
+  value       = module.aks.agic_rg_reader_role_assignment_id
+}

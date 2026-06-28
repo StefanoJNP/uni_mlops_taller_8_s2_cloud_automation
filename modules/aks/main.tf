@@ -21,18 +21,18 @@ resource "azurerm_public_ip" "appgw" {
   tags = var.tags
 }
 
-resource "azurerm_web_application_firewall_policy" "agw_waf" {
-  name                = "waf-${var.project}-${var.environment}-${var.location_short}"
-  resource_group_name = var.resource_group_name
-  location            = var.location
+# resource "azurerm_web_application_firewall_policy" "agw_waf" {
+#   name                = "waf-${var.project}-${var.environment}-${var.location_short}"
+#   resource_group_name = var.resource_group_name
+#   location            = var.location
 
-  managed_rules {
-    managed_rule_set {
-      type    = "OWASP"
-      version = "3.2"
-    }
-  }
-}
+#   managed_rules {
+#     managed_rule_set {
+#       type    = "OWASP"
+#       version = "3.2"
+#     }
+#   }
+# }
 
 # -----------------------------------------------------------------------------
 # Application Gateway v2 (Ingress para dominio público)
@@ -43,11 +43,11 @@ resource "azurerm_application_gateway" "main" {
   resource_group_name = var.resource_group_name
   location            = var.location
   zones               = var.availability_zones   # HA en 3 zonas
-  firewall_policy_id  = azurerm_web_application_firewall_policy.agw_waf.id
+  # firewall_policy_id  = azurerm_web_application_firewall_policy.agw_waf.id
 
   sku {
-    name = "WAF_v2"    # WAF incluido para protección de capa 7
-    tier = "WAF_v2"     # Mínimo recomendado; el autoscale se configura abajo
+    name = "Standard_v2" #"WAF_v2"    # WAF incluido para protección de capa 7
+    tier = "Standard_v2" #"WAF_v2"     # Mínimo recomendado; el autoscale se configura abajo
   }
 
   # Autoscaling del Application Gateway
@@ -113,10 +113,10 @@ resource "azurerm_application_gateway" "main" {
   }
 
   # Identidad gestionada para que AGIC lea secrets (TLS desde Key Vault)
-  identity {
-    type         = "UserAssigned"
-    identity_ids = [azurerm_user_assigned_identity.agic.id]
-  }
+  #identity {
+  #  type         = "SystemAssigned" # "UserAssigned"
+    #identity_ids = [azurerm_user_assigned_identity.agic.id]
+  #}
 
   tags = var.tags
 
@@ -137,27 +137,33 @@ resource "azurerm_application_gateway" "main" {
 }
 
 # -----------------------------------------------------------------------------
-# Identidad gestionada para AGIC
+# Identidad de AGIC
 # -----------------------------------------------------------------------------
-resource "azurerm_user_assigned_identity" "agic" {
-  name                = "id-agic-${var.project}-${var.environment}"
-  resource_group_name = var.resource_group_name
-  location            = var.location
-  tags                = var.tags
-}
+# El addon ingress_application_gateway crea automáticamente su propia identidad
+# administrada (ingressapplicationgateway-<cluster>). Esa identidad necesita
+# Contributor sobre el Application Gateway y Reader sobre su Resource Group;
+# AKS no asigna estos roles por sí mismo, hay que crearlos explícitamente.
 
-# AGIC necesita rol de Contributor sobre el Application Gateway
 resource "azurerm_role_assignment" "agic_appgw_contributor" {
   scope                = azurerm_application_gateway.main.id
   role_definition_name = "Contributor"
-  principal_id         = azurerm_user_assigned_identity.agic.principal_id
+  principal_id         = azurerm_kubernetes_cluster.main.ingress_application_gateway[0].ingress_application_gateway_identity[0].object_id
 }
 
-# AGIC necesita rol de Reader sobre el Resource Group
 resource "azurerm_role_assignment" "agic_rg_reader" {
   scope                = "/subscriptions/${data.azurerm_subscription.current.subscription_id}/resourceGroups/${var.resource_group_name}"
   role_definition_name = "Reader"
-  principal_id         = azurerm_user_assigned_identity.agic.principal_id
+  principal_id         = azurerm_kubernetes_cluster.main.ingress_application_gateway[0].ingress_application_gateway_identity[0].object_id
+}
+
+# Network Contributor sobre la subnet del Application Gateway: requerido para
+# el permiso "Microsoft.Network/virtualNetworks/subnets/join/action" que Azure
+# exige en cada CreateOrUpdate del AGW. Sin este rol, AGIC falla con
+# "ApplicationGatewayInsufficientPermissionOnSubnet" al sincronizar el Ingress.
+resource "azurerm_role_assignment" "agic_appgw_subnet_join" {
+  scope                = var.appgw_subnet_id
+  role_definition_name = "Network Contributor"
+  principal_id         = azurerm_kubernetes_cluster.main.ingress_application_gateway[0].ingress_application_gateway_identity[0].object_id
 }
 
 # -----------------------------------------------------------------------------
